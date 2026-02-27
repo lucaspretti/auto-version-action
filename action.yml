@@ -1,0 +1,144 @@
+name: "Auto Version"
+description: "Automated semantic versioning with RC tags on staging and production releases, driven by conventional commits."
+branding:
+  icon: "tag"
+  color: "green"
+
+inputs:
+  version-file:
+    description: 'Path to package.json (or file with "version": "x.y.z")'
+    required: true
+  helm-chart:
+    description: "Path to Chart.yaml to update appVersion (optional)"
+    required: false
+    default: ""
+  staging-branch:
+    description: "Name of the staging/RC branch"
+    required: false
+    default: "staging"
+  production-branch:
+    description: "Name of the production branch"
+    required: false
+    default: "master"
+  github-token:
+    description: "GitHub token for creating releases and tags"
+    required: true
+  github-api-url:
+    description: "GitHub API base URL (for GitHub Enterprise Server)"
+    required: false
+    default: "https://api.github.com"
+  deployment-info:
+    description: "Optional markdown block for deployment section in release notes"
+    required: false
+    default: ""
+
+outputs:
+  version:
+    description: "The base version (e.g., 2.1.1)"
+    value: ${{ steps.bump.outputs.version }}
+  rc-version:
+    description: "Full RC version if staging (e.g., 2.1.1-rc.3)"
+    value: ${{ steps.bump.outputs.rc_version }}
+  rc-number:
+    description: "RC number (e.g., 3)"
+    value: ${{ steps.bump.outputs.rc_number }}
+  bump-type:
+    description: "major, minor, or patch"
+    value: ${{ steps.analyze.outputs.type }}
+  version-changed:
+    description: "true if version was bumped"
+    value: ${{ steps.bump.outputs.version_changed }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure Git
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Analyze commits
+      id: analyze
+      shell: bash
+      env:
+        INPUT_VERSION_FILE: ${{ inputs.version-file }}
+        INPUT_STAGING_BRANCH: ${{ inputs.staging-branch }}
+        GITHUB_REF: ${{ github.ref }}
+      run: bash "${{ github.action_path }}/scripts/analyze-commits.sh"
+
+    - name: Bump version
+      id: bump
+      shell: bash
+      env:
+        INPUT_VERSION_FILE: ${{ inputs.version-file }}
+        INPUT_HELM_CHART: ${{ inputs.helm-chart }}
+        INPUT_STAGING_BRANCH: ${{ inputs.staging-branch }}
+        INPUT_PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        BUMP_TYPE: ${{ steps.analyze.outputs.type }}
+        IS_SUBSEQUENT_RC: ${{ steps.analyze.outputs.is_subsequent_rc }}
+        GITHUB_REF: ${{ github.ref }}
+      run: bash "${{ github.action_path }}/scripts/bump-version.sh"
+
+    - name: Create release
+      id: release
+      shell: bash
+      env:
+        INPUT_VERSION_FILE: ${{ inputs.version-file }}
+        INPUT_STAGING_BRANCH: ${{ inputs.staging-branch }}
+        INPUT_PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+        INPUT_GITHUB_API_URL: ${{ inputs.github-api-url }}
+        INPUT_DEPLOYMENT_INFO: ${{ inputs.deployment-info }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_REF: ${{ github.ref }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_SHA: ${{ github.sha }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_ACTOR: ${{ github.actor }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+        BASE_VERSION: ${{ steps.bump.outputs.version }}
+        RC_VERSION: ${{ steps.bump.outputs.rc_version }}
+        RC_NUMBER: ${{ steps.bump.outputs.rc_number }}
+        BUMP_TYPE: ${{ steps.analyze.outputs.type }}
+      run: bash "${{ github.action_path }}/scripts/create-release.sh"
+
+    - name: Cleanup RC pre-releases
+      if: github.ref == format('refs/heads/{0}', inputs.production-branch)
+      shell: bash
+      env:
+        INPUT_GITHUB_API_URL: ${{ inputs.github-api-url }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        VERSION: ${{ steps.bump.outputs.version }}
+      run: bash "${{ github.action_path }}/scripts/cleanup-rc.sh"
+
+    - name: Sync production back to staging
+      if: github.ref == format('refs/heads/{0}', inputs.production-branch)
+      shell: bash
+      env:
+        INPUT_STAGING_BRANCH: ${{ inputs.staging-branch }}
+        INPUT_PRODUCTION_BRANCH: ${{ inputs.production-branch }}
+      run: |
+        echo "Syncing $INPUT_PRODUCTION_BRANCH back to $INPUT_STAGING_BRANCH..."
+        git fetch origin "$INPUT_STAGING_BRANCH"
+        git checkout "$INPUT_STAGING_BRANCH"
+        git merge "origin/$INPUT_PRODUCTION_BRANCH" --no-edit -m "chore: sync $INPUT_PRODUCTION_BRANCH back to $INPUT_STAGING_BRANCH [skip ci]"
+        git push origin "$INPUT_STAGING_BRANCH"
+        echo "Staging synchronized with production"
+
+    - name: Summary
+      shell: bash
+      env:
+        BASE_VERSION: ${{ steps.bump.outputs.version }}
+        RC_VERSION: ${{ steps.bump.outputs.rc_version }}
+        RC_NUMBER: ${{ steps.bump.outputs.rc_number }}
+        VERSION_CHANGED: ${{ steps.bump.outputs.version_changed }}
+        OLD_VERSION: ${{ steps.analyze.outputs.current_version }}
+        BUMP_TYPE: ${{ steps.analyze.outputs.type }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_SHA: ${{ github.sha }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        INPUT_STAGING_BRANCH: ${{ inputs.staging-branch }}
+      run: bash "${{ github.action_path }}/scripts/summary.sh"
