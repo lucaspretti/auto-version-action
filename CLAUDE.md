@@ -13,10 +13,10 @@ GitHub Actions **composite action** for automated semantic versioning driven by 
 **`scripts/` pipeline** (executed in order):
 
 1. **`analyze-commits.sh`** — Scans commits since last production tag using regex against conventional commit prefixes. Outputs `type` (major/minor/patch) and `is_subsequent_rc` (whether RC tags already exist for this version).
-2. **`bump-version.sh`** — On staging: bumps `package.json` via `npm version`, optionally updates Helm `Chart.yaml` `appVersion`, handles version escalation (higher-priority bump resets RC to 1), commits with `[skip ci]`, and pushes. On production: reads existing version only (no bump).
+2. **`bump-version.sh`** — On staging: bumps `package.json` via `npm version`, optionally updates Helm `Chart.yaml` `appVersion`, handles version escalation (higher-priority bump resets RC to 1), commits with `[skip ci]`, and pushes. On production: checks if version is already correct (from staging merge) or bumps if outdated (direct push).
 3. **`create-release.sh`** — Creates GitHub releases via REST API. On staging: pre-release with RC tag. On production: full release. Both include categorized changelogs (Breaking/Features/Fixes/Maintenance/Other).
 4. **`cleanup-rc.sh`** — Production only. Deletes RC pre-releases with version ≤ current via GitHub API. Preserves higher-version RCs from escalation scenarios.
-5. **Sync step** (inline in `action.yml`) — Production only. Merges production back to staging.
+5. **Sync step** (inline in `action.yml`) — Production only. Merges production back to staging (skipped if staging branch doesn't exist).
 6. **`summary.sh`** — Writes formatted step summary to `$GITHUB_STEP_SUMMARY`.
 
 ## Key Design Concepts
@@ -31,9 +31,19 @@ GitHub Actions **composite action** for automated semantic versioning driven by 
 
 Scripts expect these tools available on the runner: `bash`, `node`/`npm` (for `npm version`), `jq`, `git` (with full history via `fetch-depth: 0`), `curl`.
 
+## Workflow Modes
+
+Supports both **two-branch** (staging → production with RC releases) and **single-branch** (production only, direct bump + release). Same action config, difference is only which branches trigger the workflow.
+
+## CI/CD
+
+This repo uses itself for versioning. Workflow at `.github/workflows/version.yml` runs on `web-default` (GHES self-hosted runner) with `github-api-url: ${{ github.api_url }}` for GHES compatibility.
+
 ## Conventions
 
 - All scripts use `set -euo pipefail`
 - Commits created by the action use `[skip ci]` to prevent recursive triggers
+- Changelogs exclude `[skip ci]` commits (automated bumps/syncs)
 - Git identity is set to `github-actions[bot]`
 - RC tags follow `v{major}.{minor}.{patch}-rc.{n}` format; production tags follow `v{major}.{minor}.{patch}`
+- Use `printf -- '...'` when format strings start with `-` to prevent bash interpreting them as options
