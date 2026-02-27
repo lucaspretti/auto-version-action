@@ -51,7 +51,7 @@ jobs:
 
 | Input | Required | Default | Description |
 |---|---|---|---|
-| `version-file` | **yes** | — | Path to `package.json` (or any file with `"version": "x.y.z"`) |
+| `version-file` | **yes** | — | Path to `package.json` (currently only `package.json` is supported) |
 | `helm-chart` | no | `""` | Path to `Chart.yaml` to update `appVersion` |
 | `staging-branch` | no | `staging` | Name of the staging/RC branch |
 | `production-branch` | no | `master` | Name of the production branch |
@@ -109,11 +109,47 @@ feat!: breaking    -> v2.0.0-rc.1  (highest priority, re-bump + reset RC)
 
 ### Production Behavior
 
-1. Read version from merged staging code
+1. Read version — if already correct (from staging), use it; otherwise bump automatically
 2. Create production tag (`v1.2.0`)
 3. Create GitHub Release with categorized changelog
 4. Delete all RC pre-releases with version <= current
 5. Sync production branch back to staging
+
+## Workflow Modes
+
+### Two-branch (staging + production)
+
+The recommended flow for applications with pre-production environments. Commits go to staging first, creating RC pre-releases, then merge to production for the final release.
+
+```yaml
+on:
+  push:
+    branches: [master, staging]
+```
+
+### Single-branch (production only)
+
+For simpler projects that don't need RC releases. Push directly to the production branch — the action analyzes commits, bumps the version, and creates the release in one step.
+
+```yaml
+on:
+  push:
+    branches: [master]
+```
+
+Both modes use the same action configuration. The difference is only which branches trigger the workflow.
+
+## Supported Ecosystems
+
+The action uses `npm version` internally to bump the version file. Currently supported:
+
+| Ecosystem | Supported | Version file |
+|---|---|---|
+| Node.js / Next.js / React | Yes | `package.json` |
+| Helm Charts | Yes (appVersion only) | `Chart.yaml` via `helm-chart` input |
+| Python | Not yet | `pyproject.toml` |
+| PHP / Drupal | Not yet | `composer.json` |
+| Go | Not yet | — |
 
 ## Advanced Usage
 
