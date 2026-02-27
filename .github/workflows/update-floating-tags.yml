@@ -1,0 +1,64 @@
+name: Update floating tags (vMAJOR, vMAJOR.MINOR)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-tags:
+    runs-on: web-default
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Parse semver from release tag
+        id: semver
+        run: |
+          TAG="${GITHUB_REF_NAME:-${{ github.event.release.tag_name }}}"
+          echo "TAG=$TAG"
+
+          # Accept only strict semver tags (vX.Y.Z).
+          # Ignore pre-releases like v1.0.0-rc.1.
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]* ) ;;
+            * ) echo "Not a semver tag (vX.Y.Z). Skipping."; echo "skip=true" >> $GITHUB_OUTPUT; exit 0;;
+          esac
+
+          MAJOR="${TAG%%.*}"
+          MINOR="${TAG%.*}"
+
+          echo "major=$MAJOR"  >> $GITHUB_OUTPUT
+          echo "minor=$MINOR"  >> $GITHUB_OUTPUT
+          echo "tag=$TAG"      >> $GITHUB_OUTPUT
+
+      - name: Exit if not a semver tag
+        if: steps.semver.outputs.skip == 'true'
+        run: echo "This release tag is not semver (vX.Y.Z), nothing to update."
+
+      - name: Configure Git identity
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update vMAJOR -> latest patch
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          git fetch --tags --force
+          git tag -fa "${{ steps.semver.outputs.major }}" "${{ steps.semver.outputs.tag }}" \
+            -m "Update ${{ steps.semver.outputs.major }} -> ${{ steps.semver.outputs.tag }}"
+          git push origin "refs/tags/${{ steps.semver.outputs.major }}" --force
+
+      - name: Update vMAJOR.MINOR -> latest patch
+        if: steps.semver.outputs.skip != 'true'
+        run: |
+          git tag -fa "${{ steps.semver.outputs.minor }}" "${{ steps.semver.outputs.tag }}" \
+            -m "Update ${{ steps.semver.outputs.minor }} -> ${{ steps.semver.outputs.tag }}"
+          git push origin "refs/tags/${{ steps.semver.outputs.minor }}" --force
