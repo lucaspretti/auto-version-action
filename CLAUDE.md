@@ -39,6 +39,14 @@ Supports both **two-branch** (staging → production with RC releases) and **sin
 
 This repo uses itself for versioning. Workflow at `.github/workflows/version.yml` runs on `web-default` (GHES self-hosted runner) with `github-api-url: ${{ github.api_url }}` for GHES compatibility.
 
+**Floating tags**: `update-floating-tags.yml` auto-moves `vMAJOR` and `vMAJOR.MINOR` tags on each release. Consumers use `@v1` to always get the latest fixes.
+
+## GHES Notes
+
+- Always set `github-api-url: ${{ github.api_url }}` — default points to github.com
+- Use self-hosted runner label (`web-default`), not `ubuntu-latest`
+- `gh` CLI needs `unset GITHUB_ENTERPRISE_TOKEN` and `gh auth switch --hostname git.epo.org` to use keyring token with full repo access
+
 ## Conventions
 
 - All scripts use `set -euo pipefail`
