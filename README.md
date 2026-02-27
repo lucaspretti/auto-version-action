@@ -42,7 +42,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Auto Version
         uses: web/auto-version-action@v1
@@ -76,7 +76,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Auto Version
         id: version
