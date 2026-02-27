@@ -174,6 +174,14 @@ auto-version-action/
 └── README.md
 ```
 
+## Edge Cases & Known Behaviors
+
+See [docs/edge-cases-and-findings.md](docs/edge-cases-and-findings.md) for:
+- Bugs found and fixed during real-world usage
+- Known behaviors (reverted commits in changelogs, orphaned tags, etc.)
+- Open items and future work
+- Reference implementation details from the DLMS project
+
 ## Requirements
 
 - **Node.js** — used to read/write `package.json` version
