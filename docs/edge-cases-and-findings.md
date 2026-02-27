@@ -157,6 +157,25 @@ fi
 
 ---
 
+### 12. Floating tags picked up by `git describe` as last production tag
+
+**Symptom**: `npm error Invalid version: 1..1` — version parsed incorrectly.
+
+**Cause**: `git describe --tags --abbrev=0 --exclude "*-rc.*"` finds floating tags like `v1` or `v1.1` as the "last production tag". Parsing `v1` gives MAJOR=1, MINOR="", PATCH="", producing invalid versions like `1..1`.
+
+**Fix**: Add `--match "v[0-9]*.[0-9]*.[0-9]*"` to all `git describe` calls so only full semver tags (`vX.Y.Z`) are matched:
+```bash
+# Bad — picks up v1, v1.1 floating tags
+git describe --tags --abbrev=0 --exclude "*-rc.*"
+
+# Good — only matches vX.Y.Z
+git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-rc.*"
+```
+
+**Applies to**: Only repos that have floating tags (like this action itself). Other consumer repos are unaffected.
+
+---
+
 ## Known Behaviors (Not Bugs)
 
 ### Reverted commits still appear in changelogs
