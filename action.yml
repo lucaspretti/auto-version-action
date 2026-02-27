@@ -120,12 +120,16 @@ runs:
         INPUT_STAGING_BRANCH: ${{ inputs.staging-branch }}
         INPUT_PRODUCTION_BRANCH: ${{ inputs.production-branch }}
       run: |
-        echo "Syncing $INPUT_PRODUCTION_BRANCH back to $INPUT_STAGING_BRANCH..."
-        git fetch origin "$INPUT_STAGING_BRANCH"
-        git checkout "$INPUT_STAGING_BRANCH"
-        git merge "origin/$INPUT_PRODUCTION_BRANCH" --no-edit -m "chore: sync $INPUT_PRODUCTION_BRANCH back to $INPUT_STAGING_BRANCH [skip ci]"
-        git push origin "$INPUT_STAGING_BRANCH"
-        echo "Staging synchronized with production"
+        if git ls-remote --exit-code origin "$INPUT_STAGING_BRANCH" >/dev/null 2>&1; then
+          echo "Syncing $INPUT_PRODUCTION_BRANCH back to $INPUT_STAGING_BRANCH..."
+          git fetch origin "$INPUT_STAGING_BRANCH"
+          git checkout "$INPUT_STAGING_BRANCH"
+          git merge "origin/$INPUT_PRODUCTION_BRANCH" --no-edit -m "chore: sync $INPUT_PRODUCTION_BRANCH back to $INPUT_STAGING_BRANCH [skip ci]"
+          git push origin "$INPUT_STAGING_BRANCH"
+          echo "Staging synchronized with production"
+        else
+          echo "Staging branch '$INPUT_STAGING_BRANCH' does not exist on remote, skipping sync"
+        fi
 
     - name: Summary
       shell: bash
