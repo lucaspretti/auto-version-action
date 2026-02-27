@@ -83,6 +83,80 @@ LAST_TAG=$(git describe --tags --abbrev=0 --exclude "*-rc.*" 2>/dev/null || echo
 
 ---
 
+### 7. `printf` interprets leading `-` in format strings as option flag
+
+**Symptom**: `printf: - : invalid option` when writing list items to release notes.
+
+**Cause**: Same root cause as bug #1, but affects format strings starting with `- ` (markdown list items), e.g. `printf '- **Docker Image**: ...'`.
+
+**Fix**: Use `printf -- '- ...'` where `--` signals end of options:
+```bash
+# Bad — fails
+printf '- **Docker Image**: `%s`\n' "$SHA" >> release_notes.md
+
+# Good — works
+printf -- '- **Docker Image**: `%s`\n' "$SHA" >> release_notes.md
+```
+
+**Applies to**: `create-release.sh` — all `printf` calls where the format string starts with `- `.
+
+---
+
+### 8. Non-fast-forward push when remote advances during workflow
+
+**Symptom**: `error: failed to push some refs` / `Updates were rejected because the tip of your current branch is behind`.
+
+**Cause**: Between `actions/checkout` and the version bump commit, someone (or another workflow) pushes to the same branch. The bump commit is based on an outdated HEAD, so `git push` fails.
+
+**Fix**: Pull with rebase before pushing:
+```bash
+git pull --rebase origin "$BRANCH" || true
+git push origin "$BRANCH"
+```
+
+**Applies to**: `bump-version.sh` — both staging and production push paths.
+
+---
+
+### 9. GHES API returns 401 when using default github-api-url
+
+**Symptom**: `Bad credentials` / HTTP 401 when creating releases on GitHub Enterprise Server.
+
+**Cause**: The `github-api-url` input defaults to `https://api.github.com`. On GHES, the `GITHUB_TOKEN` is only valid for the enterprise instance, not github.com.
+
+**Fix**: Set `github-api-url: ${{ github.api_url }}` in the workflow to auto-detect the correct API endpoint.
+
+**Applies to**: Any GHES deployment. Not an issue on github.com.
+
+---
+
+### 10. Staging sync fails when staging branch doesn't exist
+
+**Symptom**: `fatal: couldn't find remote ref staging` on production release.
+
+**Cause**: The sync step always runs on production releases, but in single-branch (master-only) workflows, the staging branch doesn't exist.
+
+**Fix**: Check if the staging branch exists on remote before attempting sync:
+```bash
+if git ls-remote --exit-code origin "$INPUT_STAGING_BRANCH" >/dev/null 2>&1; then
+  # sync
+fi
+```
+
+**Applies to**: Single-branch workflows where only the production branch is used.
+
+---
+
+### 11. Floating tag `v1` not updated after new releases
+
+**Symptom**: Consumers using `@v1` don't get bug fixes after new releases.
+
+**Cause**: The `v1` tag was static — created once and never moved. New patch/minor releases create `v1.x.y` tags but don't update the major version floating tag.
+
+**Fix**: Added `update-floating-tags.yml` workflow that triggers on `release: published` and moves `vMAJOR` and `vMAJOR.MINOR` tags to the latest release.
+
+---
+
 ## Known Behaviors (Not Bugs)
 
 ### Reverted commits still appear in changelogs
