@@ -111,6 +111,7 @@ For GHES instances, add `github-api-url` to ensure API calls reach the correct e
 | `production-branch` | no | `master` | Name of the production branch |
 | `github-token` | **yes** | — | Token for creating releases and tags |
 | `github-api-url` | no | `https://api.github.com` | API URL for GitHub Enterprise Server |
+| `update-floating-tags` | no | `"false"` | Update `vMAJOR` and `vMAJOR.MINOR` floating tags on production release |
 | `deployment-info` | no | `""` | Markdown block for deployment section in release notes |
 
 ## Outputs
@@ -340,7 +341,7 @@ This action uses **floating tags** so consumers always get the latest fixes:
 | `@v1.2` | Latest `v1.2.x` patch | Pin to a minor version |
 | `@v1.2.3` | Exact version | Full reproducibility |
 
-Floating tags (`v1`, `v1.2`) are updated automatically via the `update-floating-tags.yml` workflow every time a new release is published.
+Floating tags (`v1`, `v1.2`) are updated automatically when `update-floating-tags: "true"` is set. This is useful for GitHub Actions consumed by other repos. Off by default.
 
 ## Architecture
 
@@ -353,6 +354,7 @@ auto-version-action/
 │   ├── bump-version.sh     # Version bump + RC numbering logic
 │   ├── create-release.sh   # Release/pre-release creation with changelog
 │   ├── cleanup-rc.sh       # RC pre-release cleanup on production
+│   ├── update-floating-tags.sh # Move vMAJOR/vMAJOR.MINOR tags (opt-in)
 │   └── summary.sh          # GitHub Actions step summary
 └── README.md
 ```

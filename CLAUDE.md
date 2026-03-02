@@ -17,8 +17,9 @@ GitHub Actions **composite action** for automated semantic versioning driven by 
 2. **`bump-version.sh`** — On staging: bumps version file via `version-utils.sh`, optionally updates Helm `Chart.yaml` `appVersion`, handles version escalation (higher-priority bump resets RC to 1), commits with `[skip ci]`, and pushes. On production: checks if version is already correct (from staging merge) or bumps if outdated (direct push).
 3. **`create-release.sh`** — Creates GitHub releases via REST API. On staging: pre-release with RC tag. On production: full release. Both include categorized changelogs (Breaking/Features/Fixes/Maintenance/Other).
 4. **`cleanup-rc.sh`** — Production only. Deletes RC pre-releases with version ≤ current via GitHub API. Preserves higher-version RCs from escalation scenarios.
-5. **Sync step** (inline in `action.yml`) — Production only. Merges production back to staging (skipped if staging branch doesn't exist).
-6. **`summary.sh`** — Writes formatted step summary to `$GITHUB_STEP_SUMMARY`.
+5. **`update-floating-tags.sh`** — Production only, opt-in (`update-floating-tags: "true"`). Moves `vMAJOR` and `vMAJOR.MINOR` tags to the latest release. Useful for GitHub Actions consumed via `@v1`.
+6. **Sync step** (inline in `action.yml`) — Production only. Merges production back to staging (skipped if staging branch doesn't exist).
+7. **`summary.sh`** — Writes formatted step summary to `$GITHUB_STEP_SUMMARY`.
 
 ## Key Design Concepts
 
@@ -40,7 +41,7 @@ Supports both **two-branch** (staging → production with RC releases) and **sin
 
 This repo uses itself for versioning. Workflow at `.github/workflows/version.yml` runs on `web-default` (GHES self-hosted runner) with `github-api-url: ${{ github.api_url }}` for GHES compatibility.
 
-**Floating tags**: `update-floating-tags.yml` auto-moves `vMAJOR` and `vMAJOR.MINOR` tags on each release. Consumers use `@v1` to always get the latest fixes.
+**Floating tags**: Built into the action via `update-floating-tags: "true"` input (default off). Moves `vMAJOR` and `vMAJOR.MINOR` tags on each production release. Enabled in this repo's workflow since consumers use `@v1`.
 
 ## GHES Notes
 
