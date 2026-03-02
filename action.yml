@@ -113,6 +113,13 @@ runs:
         VERSION: ${{ steps.bump.outputs.version }}
       run: bash "${{ github.action_path }}/scripts/cleanup-rc.sh"
 
+    - name: Update floating tags
+      if: github.ref == format('refs/heads/{0}', inputs.production-branch)
+      shell: bash
+      env:
+        VERSION: ${{ steps.bump.outputs.version }}
+      run: bash "${{ github.action_path }}/scripts/update-floating-tags.sh"
+
     - name: Sync production back to staging
       if: github.ref == format('refs/heads/{0}', inputs.production-branch)
       shell: bash
