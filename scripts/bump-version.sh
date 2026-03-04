@@ -146,22 +146,21 @@ if [ "$IS_SUBSEQUENT_RC" = "false" ] || [ "$NEEDS_REBUMP" = "true" ]; then
 
     # Bump version file
     write_version "$INPUT_VERSION_FILE" "$EXPECTED_VERSION"
-    NEW_BASE_VERSION=$(read_version "$INPUT_VERSION_FILE")
 
     # Update Helm Chart appVersion if configured
     if [ -n "$INPUT_HELM_CHART" ] && [ -f "$INPUT_HELM_CHART" ]; then
-      sed -i "s/^appVersion:.*/appVersion: \"$NEW_BASE_VERSION\"/" "$INPUT_HELM_CHART"
+      sed -i "s/^appVersion:.*/appVersion: \"$EXPECTED_VERSION\"/" "$INPUT_HELM_CHART"
     fi
 
     # Commit version bump
     git add -A
-    git commit -m "chore: bump version to $NEW_BASE_VERSION [skip ci]"
+    git commit -m "chore: bump version to $EXPECTED_VERSION [skip ci]"
     git pull --rebase origin "$INPUT_STAGING_BRANCH" || true
     git push origin "$INPUT_STAGING_BRANCH"
 
-    BASE_VERSION="$NEW_BASE_VERSION"
+    BASE_VERSION="$EXPECTED_VERSION"
     NEEDS_BUMP="true"
-    echo "Bumped from $CURRENT_VERSION to $NEW_BASE_VERSION"
+    echo "Bumped from $CURRENT_VERSION to $EXPECTED_VERSION"
   else
     echo "Version is already correct: $CURRENT_VERSION"
     NEEDS_BUMP="false"

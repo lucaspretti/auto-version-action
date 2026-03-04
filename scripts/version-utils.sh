@@ -45,6 +45,21 @@ read_version() {
   esac
 }
 
+# _write_via_tmp <filepath> <command...>
+# Runs command with output to a temp file, then atomically replaces the target.
+# Cleans up temp file on failure.
+_write_via_tmp() {
+  local file="$1"; shift
+  local tmp
+  tmp=$(mktemp)
+  if "$@" > "$tmp"; then
+    mv "$tmp" "$file"
+  else
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
 # write_version <filepath> <new_version>
 # Updates the version in-place.
 write_version() {
@@ -55,19 +70,13 @@ write_version() {
 
   case "$type" in
     json)
-      local tmp
-      tmp=$(mktemp)
-      jq --arg v "$version" '.version = $v' "$file" > "$tmp" && mv "$tmp" "$file"
+      _write_via_tmp "$file" jq --arg v "$version" '.version = $v' "$file"
       ;;
     toml)
-      local tmp
-      tmp=$(mktemp)
-      sed "s/^version[[:space:]]*=.*/version = \"$version\"/" "$file" > "$tmp" && mv "$tmp" "$file"
+      _write_via_tmp "$file" sed "s/^version[[:space:]]*=.*/version = \"$version\"/" "$file"
       ;;
     yaml)
-      local tmp
-      tmp=$(mktemp)
-      sed "s/^version:.*/version: \"$version\"/" "$file" > "$tmp" && mv "$tmp" "$file"
+      _write_via_tmp "$file" sed "s/^version:.*/version: \"$version\"/" "$file"
       ;;
     plain)
       printf '%s\n' "$version" > "$file"
