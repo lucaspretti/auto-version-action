@@ -13,7 +13,7 @@ source "$SCRIPT_DIR/version-utils.sh"
 STAGING_REF="refs/heads/$INPUT_STAGING_BRANCH"
 PRODUCTION_REF="refs/heads/$INPUT_PRODUCTION_BRANCH"
 
-# --- Helper ---
+# --- Helpers ---
 get_bump_priority() {
   case "$1" in
     major) echo "3" ;;
@@ -21,6 +21,19 @@ get_bump_priority() {
     patch) echo "1" ;;
     *)     echo "0" ;;
   esac
+}
+
+# Returns 0 (true) if version A >= version B (semver comparison)
+version_gte() {
+  local a_major a_minor a_patch b_major b_minor b_patch
+  IFS='.' read -r a_major a_minor a_patch <<< "$1"
+  IFS='.' read -r b_major b_minor b_patch <<< "$2"
+  if [ "$a_major" -gt "$b_major" ]; then return 0; fi
+  if [ "$a_major" -lt "$b_major" ]; then return 1; fi
+  if [ "$a_minor" -gt "$b_minor" ]; then return 0; fi
+  if [ "$a_minor" -lt "$b_minor" ]; then return 1; fi
+  if [ "$a_patch" -ge "$b_patch" ]; then return 0; fi
+  return 1
 }
 
 # ===== PRODUCTION =====
@@ -45,8 +58,8 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
 
   VERSION_CHANGED="false"
 
-  if [ "$CURRENT_VERSION" = "$EXPECTED_VERSION" ]; then
-    echo "Production version already correct (from staging): $CURRENT_VERSION"
+  if version_gte "$CURRENT_VERSION" "$EXPECTED_VERSION"; then
+    echo "Production version already correct: $CURRENT_VERSION (expected >= $EXPECTED_VERSION)"
     VERSION="$CURRENT_VERSION"
   else
     echo "Version outdated ($CURRENT_VERSION), bumping to $EXPECTED_VERSION"

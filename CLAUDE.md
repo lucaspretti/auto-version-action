@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-GitHub Actions **composite action** for automated semantic versioning driven by Conventional Commits. Pure bash — no build step, no npm dependencies, no tests. Designed for a two-branch workflow: staging (RC pre-releases) and production (final releases).
+GitHub Actions **composite action** for automated semantic versioning driven by Conventional Commits. Pure bash, no build step, no npm dependencies. Designed for a two-branch workflow: staging (RC pre-releases) and production (final releases).
 
 ## Architecture
 
@@ -48,6 +48,12 @@ This repo uses itself for versioning. Workflow at `.github/workflows/version.yml
 - Always set `github-api-url: ${{ github.api_url }}` — default points to github.com
 - Use self-hosted runner label (`web-default`), not `ubuntu-latest`
 - `gh` CLI needs `unset GITHUB_ENTERPRISE_TOKEN` and `gh auth switch --hostname git.epo.org` to use keyring token with full repo access
+
+## Testing
+
+Unit tests live in `tests/` and run via `bash tests/run-all.sh`. Tests use a minimal bash assertion helper (`tests/test-helper.sh`), no external framework. Each script has a corresponding test file (e.g., `tests/test-bump-version.sh`). Tests mock git/GitHub API calls and validate logic in isolation.
+
+Run tests locally: `bash tests/run-all.sh`
 
 ## Conventions
 
