@@ -49,8 +49,8 @@ echo "Analyzing commits $RANGE_DESC"
 
 # Determine bump type from conventional commits
 # Type prefix and ! are checked on subject lines only to avoid false positives from body text
-# BREAKING CHANGE footer is checked on full body
-if echo "$SUBJECTS" | grep -qE '(^|[[:space:]])[a-z]+(\(.*\))?!:' || echo "$BODIES" | grep -q 'BREAKING CHANGE'; then
+# BREAKING CHANGE footer must start at beginning of line followed by colon (per conventional commits spec)
+if echo "$SUBJECTS" | grep -qE '(^|[[:space:]])[a-z]+(\(.*\))?!:' || echo "$BODIES" | grep -qE '^BREAKING CHANGE:'; then
   echo "Found breaking change -- MAJOR version bump"
   echo "type=major" >> "$GITHUB_OUTPUT"
 elif echo "$SUBJECTS" | grep -qE '(^|[[:space:]])feat(\(.*\))?:'; then

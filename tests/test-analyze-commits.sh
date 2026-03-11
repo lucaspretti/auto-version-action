@@ -15,7 +15,7 @@ source "$SCRIPT_DIR/test-helper.sh"
 classify_commits() {
   local SUBJECTS="$1"
   local BODIES="${2:-$1}"
-  if echo "$SUBJECTS" | grep -qE '(^|[[:space:]])[a-z]+(\(.*\))?!:' || echo "$BODIES" | grep -q 'BREAKING CHANGE'; then
+  if echo "$SUBJECTS" | grep -qE '(^|[[:space:]])[a-z]+(\(.*\))?!:' || echo "$BODIES" | grep -qE '^BREAKING CHANGE:'; then
     echo "major"
   elif echo "$SUBJECTS" | grep -qE '(^|[[:space:]])feat(\(.*\))?:'; then
     echo "minor"
@@ -149,6 +149,16 @@ test_start "minor: body mentioning feat: must not trigger minor"
 SUBJECT="docs: update changelog"
 BODY="$(printf 'docs: update changelog\n\nAdded entries for feat: new api and fix: bug.')"
 assert_eq "patch" "$(classify_commits "$SUBJECT" "$BODY")"
+
+test_start "patch: body mentioning BREAKING CHANGE mid-sentence must not trigger major"
+SUBJECT="fix: analyze only commit subjects"
+BODY="$(printf 'fix: analyze only commit subjects\n\nkeeping %%B for BREAKING CHANGE footer detection.')"
+assert_eq "patch" "$(classify_commits "$SUBJECT" "$BODY")"
+
+test_start "major: BREAKING CHANGE as proper footer still works"
+SUBJECT="refactor: rewrite module"
+BODY="$(printf 'refactor: rewrite module\n\nBREAKING CHANGE: old API removed')"
+assert_eq "major" "$(classify_commits "$SUBJECT" "$BODY")"
 
 # --- Summary ---
 test_summary "analyze-commits"
