@@ -170,11 +170,24 @@ feat!: breaking    -> v2.0.0-rc.1  (highest priority, re-bump + reset RC)
 
 ### Production Behavior
 
-1. Read version — if already correct (from staging), use it; otherwise bump automatically
-2. Create production tag (`v1.2.0`)
-3. Create GitHub Release with categorized changelog
-4. Delete all RC pre-releases with version <= current
-5. Sync production branch back to staging
+1. **Guard check (two-branch mode):** If a staging branch exists, the action checks whether
+   the merge came from staging. If so, it requires RC tags for the expected version before
+   bumping. This prevents spurious version bumps when merging staging multiple times within
+   the same RC cycle. Hotfix branches merged directly to production skip this check.
+2. Read version — if already correct (from staging), use it; otherwise bump automatically
+3. Create production tag (`v1.2.0`)
+4. Create GitHub Release with categorized changelog
+5. Delete all RC pre-releases with version <= current
+6. Sync production branch back to staging
+
+**Production guard behavior by scenario:**
+
+| Scenario | Staging exists? | Merge from staging? | RC tags? | Result |
+|---|---|---|---|---|
+| Normal release | yes | yes | yes | Bump + release |
+| Redundant staging merge | yes | yes | no | Skip (no bump) |
+| Hotfix branch -> production | yes | no | no | Bump + release |
+| Single-branch (no staging) | no | n/a | n/a | Bump + release |
 
 ## Workflow Modes
 
@@ -370,6 +383,16 @@ auto-version-action/
 │   └── test-version-utils.sh
 └── README.md
 ```
+
+## Branch Protection Compatibility
+
+When using branch protection on the production branch (e.g., requiring pull requests), the
+action needs permission to push the version bump commit directly. Add the GitHub Actions app
+to the **"Allow specified actors to bypass required pull requests"** list in branch protection
+settings. The app name varies by installation (e.g., `gh-actions-app-web` for the `web` org).
+
+If the production guard determines no bump is needed (e.g., redundant staging merge), no push
+is attempted and branch protection is not an issue.
 
 ## Edge Cases & Known Behaviors
 
