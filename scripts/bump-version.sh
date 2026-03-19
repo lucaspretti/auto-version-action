@@ -70,21 +70,34 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
 
   VERSION_CHANGED="false"
 
-  # Guard: in two-branch mode (staging exists), only bump if RC tags exist for expected version.
+  # Guard: in two-branch mode, skip bump if the merge came from staging and no RC tags exist.
   # This prevents spurious bumps when staging merges bring commits but the RC cycle
-  # has not advanced to the expected version yet.
+  # has not advanced. Hotfix branches (not from staging) are allowed to bump without RCs.
   STAGING_EXISTS=$(git ls-remote --exit-code origin "$INPUT_STAGING_BRANCH" >/dev/null 2>&1 && echo "true" || echo "false")
   if [ "$STAGING_EXISTS" = "true" ]; then
+    # Check if the latest merge is from the staging branch
+    LAST_MERGE_MSG=$(git log --merges -1 --pretty=%s HEAD 2>/dev/null || echo "")
+    IS_STAGING_MERGE="false"
+    if echo "$LAST_MERGE_MSG" | grep -qi "$INPUT_STAGING_BRANCH"; then
+      IS_STAGING_MERGE="true"
+    fi
+
     RC_TAG_COUNT=$(git tag -l "v${EXPECTED_VERSION}-rc.*" 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$RC_TAG_COUNT" -eq 0 ]; then
-      echo "Skipping bump to $EXPECTED_VERSION: no RC tags found (staging branch exists but RC cycle has not started for this version)"
+
+    if [ "$IS_STAGING_MERGE" = "true" ] && [ "$RC_TAG_COUNT" -eq 0 ]; then
+      echo "Skipping bump to $EXPECTED_VERSION: merge from $INPUT_STAGING_BRANCH but no RC tags found for this version"
       echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
       echo "rc_version=" >> "$GITHUB_OUTPUT"
       echo "rc_number=" >> "$GITHUB_OUTPUT"
       echo "version_changed=false" >> "$GITHUB_OUTPUT"
       exit 0
     fi
-    echo "Found $RC_TAG_COUNT RC tag(s) for v$EXPECTED_VERSION, proceeding with release"
+
+    if [ "$IS_STAGING_MERGE" = "true" ]; then
+      echo "Found $RC_TAG_COUNT RC tag(s) for v$EXPECTED_VERSION, proceeding with release"
+    else
+      echo "Non-staging merge (hotfix), proceeding with bump (no RC required)"
+    fi
   fi
 
   if version_gte "$CURRENT_VERSION" "$EXPECTED_VERSION"; then
