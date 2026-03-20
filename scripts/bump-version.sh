@@ -4,7 +4,8 @@ set -euo pipefail
 # bump-version.sh
 # Bumps version in version-file (and optional helm chart).
 # For staging: bumps + creates RC number.
-# For production: bumps only if version is outdated (direct push without staging).
+# For production: reads version from package.json (set by staging merge), never bumps.
+#   Exception: single-branch mode (no staging branch) bumps normally.
 # Outputs: version, rc_version, rc_number, version_changed
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,9 +40,10 @@ version_gte() {
 # ===== PRODUCTION =====
 if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
 
+  CURRENT_VERSION=$(read_version "$INPUT_VERSION_FILE")
+
   # No meaningful commits: skip entirely
   if [ "$BUMP_TYPE" = "none" ]; then
-    CURRENT_VERSION=$(read_version "$INPUT_VERSION_FILE")
     echo "No meaningful commits to release, skipping"
     echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
     echo "rc_version=" >> "$GITHUB_OUTPUT"
@@ -50,9 +52,66 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
     exit 0
   fi
 
-  CURRENT_VERSION=$(read_version "$INPUT_VERSION_FILE")
+  # Check if this version already has a release tag
+  if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
+    echo "Release tag v$CURRENT_VERSION already exists, skipping (already released)"
+    echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+    echo "rc_version=" >> "$GITHUB_OUTPUT"
+    echo "rc_number=" >> "$GITHUB_OUTPUT"
+    echo "version_changed=false" >> "$GITHUB_OUTPUT"
+    exit 0
+  fi
 
-  # Calculate expected version from commits
+  # Check if a staging branch exists on remote
+  STAGING_EXISTS=$(git ls-remote --exit-code origin "$INPUT_STAGING_BRANCH" >/dev/null 2>&1 && echo "true" || echo "false")
+
+  if [ "$STAGING_EXISTS" = "true" ]; then
+    # --- Two-branch mode ---
+    # The version in package.json comes from the staging merge. Never bump here.
+    # Just validate that RC tags exist for this version (meaning staging completed its cycle).
+    RC_TAG_COUNT=$(git tag -l "v${CURRENT_VERSION}-rc.*" 2>/dev/null | wc -l | tr -d ' ')
+
+    if [ "$RC_TAG_COUNT" -gt 0 ]; then
+      echo "Two-branch mode: version $CURRENT_VERSION has $RC_TAG_COUNT RC tag(s), ready for release"
+      echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+      echo "rc_version=" >> "$GITHUB_OUTPUT"
+      echo "rc_number=" >> "$GITHUB_OUTPUT"
+      echo "version_changed=false" >> "$GITHUB_OUTPUT"
+      exit 0
+    fi
+
+    # No RC tags: the staging auto-version may not have completed yet, or this is
+    # a hotfix merged directly to production. Check if the merge came from staging.
+    LAST_MERGE_MSG=$(git log --merges -1 --pretty=%s HEAD 2>/dev/null || echo "")
+    IS_STAGING_MERGE="false"
+    if echo "$LAST_MERGE_MSG" | grep -qi "$INPUT_STAGING_BRANCH"; then
+      IS_STAGING_MERGE="true"
+    fi
+
+    if [ "$IS_STAGING_MERGE" = "true" ]; then
+      echo "Skipping: merge from $INPUT_STAGING_BRANCH but no RC tags for v$CURRENT_VERSION (staging cycle incomplete)"
+      echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+      echo "rc_version=" >> "$GITHUB_OUTPUT"
+      echo "rc_number=" >> "$GITHUB_OUTPUT"
+      echo "version_changed=false" >> "$GITHUB_OUTPUT"
+      exit 0
+    fi
+
+    # Not a staging merge (hotfix branch merged directly to production).
+    # Still do not bump: the hotfix branch should carry its own version,
+    # or the next staging merge will bring the correct version.
+    echo "Two-branch mode: non-staging merge (hotfix), using version from package.json: $CURRENT_VERSION"
+    echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+    echo "rc_version=" >> "$GITHUB_OUTPUT"
+    echo "rc_number=" >> "$GITHUB_OUTPUT"
+    echo "version_changed=false" >> "$GITHUB_OUTPUT"
+    exit 0
+  fi
+
+  # --- Single-branch mode (no staging branch) ---
+  # This repo only has a production branch, so we must bump here.
+  echo "Single-branch mode: no staging branch found, bumping version"
+
   LAST_PROD_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-rc.*" 2>/dev/null || echo "")
   if [ -z "$LAST_PROD_TAG" ]; then
     LAST_PROD_VERSION="0.0.0"
@@ -70,38 +129,8 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
 
   VERSION_CHANGED="false"
 
-  # Guard: in two-branch mode, skip bump if the merge came from staging and no RC tags exist.
-  # This prevents spurious bumps when staging merges bring commits but the RC cycle
-  # has not advanced. Hotfix branches (not from staging) are allowed to bump without RCs.
-  STAGING_EXISTS=$(git ls-remote --exit-code origin "$INPUT_STAGING_BRANCH" >/dev/null 2>&1 && echo "true" || echo "false")
-  if [ "$STAGING_EXISTS" = "true" ]; then
-    # Check if the latest merge is from the staging branch
-    LAST_MERGE_MSG=$(git log --merges -1 --pretty=%s HEAD 2>/dev/null || echo "")
-    IS_STAGING_MERGE="false"
-    if echo "$LAST_MERGE_MSG" | grep -qi "$INPUT_STAGING_BRANCH"; then
-      IS_STAGING_MERGE="true"
-    fi
-
-    RC_TAG_COUNT=$(git tag -l "v${EXPECTED_VERSION}-rc.*" 2>/dev/null | wc -l | tr -d ' ')
-
-    if [ "$IS_STAGING_MERGE" = "true" ] && [ "$RC_TAG_COUNT" -eq 0 ]; then
-      echo "Skipping bump to $EXPECTED_VERSION: merge from $INPUT_STAGING_BRANCH but no RC tags found for this version"
-      echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
-      echo "rc_version=" >> "$GITHUB_OUTPUT"
-      echo "rc_number=" >> "$GITHUB_OUTPUT"
-      echo "version_changed=false" >> "$GITHUB_OUTPUT"
-      exit 0
-    fi
-
-    if [ "$IS_STAGING_MERGE" = "true" ]; then
-      echo "Found $RC_TAG_COUNT RC tag(s) for v$EXPECTED_VERSION, proceeding with release"
-    else
-      echo "Non-staging merge (hotfix), proceeding with bump (no RC required)"
-    fi
-  fi
-
   if version_gte "$CURRENT_VERSION" "$EXPECTED_VERSION"; then
-    echo "Production version already correct: $CURRENT_VERSION (expected >= $EXPECTED_VERSION)"
+    echo "Version already correct: $CURRENT_VERSION (expected >= $EXPECTED_VERSION)"
     VERSION="$CURRENT_VERSION"
   else
     echo "Version outdated ($CURRENT_VERSION), bumping to $EXPECTED_VERSION"

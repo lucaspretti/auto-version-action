@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # test-bump-version.sh
-# Tests for helper functions and production logic in scripts/bump-version.sh.
+# Tests for helper functions in scripts/bump-version.sh.
 # Extracts functions without running the main script (which needs git).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

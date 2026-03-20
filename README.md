@@ -170,24 +170,39 @@ feat!: breaking    -> v2.0.0-rc.1  (highest priority, re-bump + reset RC)
 
 ### Production Behavior
 
-1. **Guard check (two-branch mode):** If a staging branch exists, the action checks whether
-   the merge came from staging. If so, it requires RC tags for the expected version before
-   bumping. This prevents spurious version bumps when merging staging multiple times within
-   the same RC cycle. Hotfix branches merged directly to production skip this check.
-2. Read version — if already correct (from staging), use it; otherwise bump automatically
-3. Create production tag (`v1.2.0`)
-4. Create GitHub Release with categorized changelog
-5. Delete all RC pre-releases with version <= current
-6. Sync production branch back to staging
+The production branch **never bumps the version or pushes commits** in two-branch mode. The
+correct version arrives via the staging merge. This avoids issues with protected branches and
+race conditions when staging auto-version has not yet completed.
 
-**Production guard behavior by scenario:**
+**Two-branch mode** (staging branch exists on remote):
 
-| Scenario | Staging exists? | Merge from staging? | RC tags? | Result |
+1. Read the current version from the version file (set by the staging merge)
+2. If a release tag (`v{version}`) already exists, skip (already released)
+3. If RC tags exist for this version, proceed: output `version_changed=false`, let
+   `create-release.sh` create the production tag and release
+4. If no RC tags and the merge came from staging, skip (staging cycle incomplete,
+   auto-version has not run yet)
+5. If no RC tags and the merge did NOT come from staging (hotfix), use the version
+   from the version file as-is (no bump, no push)
+
+**Single-branch mode** (no staging branch on remote):
+
+1. Analyze commits and calculate the expected version (same as old behavior)
+2. If the current version is already correct, use it
+3. If outdated, bump the version file, commit, and push
+
+After `bump-version.sh`, subsequent steps handle tag creation, release notes, RC cleanup,
+and branch sync.
+
+**Production behavior by scenario:**
+
+| Scenario | Staging exists? | RC tags? | Merge from staging? | Result |
 |---|---|---|---|---|
-| Normal release | yes | yes | yes | Bump + release |
-| Redundant staging merge | yes | yes | no | Skip (no bump) |
-| Hotfix branch -> production | yes | no | no | Bump + release |
-| Single-branch (no staging) | no | n/a | n/a | Bump + release |
+| Normal release | yes | yes | yes | Read version, create release (no bump) |
+| Normal release (hotfix) | yes | no | no | Read version, create release (no bump) |
+| Staging merge before RC cycle | yes | no | yes | Skip (staging cycle incomplete) |
+| Already released | yes | n/a | n/a | Skip (tag exists) |
+| Single-branch mode | no | n/a | n/a | Bump + release (full flow) |
 
 ## Workflow Modes
 
@@ -387,12 +402,12 @@ auto-version-action/
 ## Branch Protection Compatibility
 
 When using branch protection on the production branch (e.g., requiring pull requests), the
-action needs permission to push the version bump commit directly. Add the GitHub Actions app
-to the **"Allow specified actors to bypass required pull requests"** list in branch protection
-settings. The app name varies by installation (e.g., `gh-actions-app-web` for the `web` org).
+action needs permission to push the version bump commit directly in **single-branch mode**.
+Add the GitHub Actions app to the **"Allow specified actors to bypass required pull requests"**
+list in branch protection settings.
 
-If the production guard determines no bump is needed (e.g., redundant staging merge), no push
-is attempted and branch protection is not an issue.
+In **two-branch mode**, the production flow never pushes commits (the version comes from the
+staging merge), so branch protection is not an issue.
 
 ## Edge Cases & Known Behaviors
 
@@ -411,4 +426,3 @@ See [docs/edge-cases-and-findings.md](docs/edge-cases-and-findings.md) for:
 ## License
 
 Internal EPO use.
-
