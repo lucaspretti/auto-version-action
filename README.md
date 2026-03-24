@@ -41,7 +41,7 @@ jobs:
           fetch-depth: 0    # Required: full history for commit analysis
 
       - name: Auto Version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: package.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -72,7 +72,7 @@ jobs:
 
       - name: Auto Version
         id: version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: package.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -92,7 +92,7 @@ For GHES instances, add `github-api-url` to ensure API calls reach the correct e
 
 ```yaml
       - name: Auto Version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: package.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -249,7 +249,7 @@ Updates `appVersion` in your Helm `Chart.yaml` alongside the version file:
 
 ```yaml
       - name: Auto Version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: js-app/package.json
           helm-chart: helm/my-app/Chart.yaml
@@ -262,7 +262,7 @@ Use `develop`/`main` instead of the default `staging`/`master`:
 
 ```yaml
       - name: Auto Version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: package.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -274,7 +274,7 @@ Use `develop`/`main` instead of the default `staging`/`master`:
 
 ```yaml
       - name: Auto Version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: composer.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -284,7 +284,7 @@ Use `develop`/`main` instead of the default `staging`/`master`:
 
 ```yaml
       - name: Auto Version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: pyproject.toml
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -296,7 +296,7 @@ For repos without a package manager (shell scripts, documentation, etc.):
 
 ```yaml
       - name: Auto Version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: VERSION
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -308,7 +308,7 @@ Add environment details to the release notes:
 
 ```yaml
       - name: Auto Version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: package.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -324,7 +324,7 @@ Use the version output to tag Docker images:
 ```yaml
       - name: Auto Version
         id: version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: package.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -344,7 +344,7 @@ Only deploy when the version actually changed:
 ```yaml
       - name: Auto Version
         id: version
-        uses: web/auto-version-action@v1
+        uses: lucaspretti/auto-version-action@v1
         with:
           version-file: package.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -425,4 +425,4 @@ See [docs/edge-cases-and-findings.md](docs/edge-cases-and-findings.md) for:
 
 ## License
 
-Internal EPO use.
+MIT
