@@ -15,10 +15,10 @@ echo "Updating floating tags: $MAJOR_TAG and $MINOR_TAG -> $TAG"
 
 git fetch --tags --force
 
-git tag -fa "$MAJOR_TAG" "$TAG" -m "Update $MAJOR_TAG -> $TAG"
+git tag -fa "$MAJOR_TAG" "$TAG^{}" -m "Update $MAJOR_TAG -> $TAG"
 git push origin "refs/tags/$MAJOR_TAG" --force
 
-git tag -fa "$MINOR_TAG" "$TAG" -m "Update $MINOR_TAG -> $TAG"
+git tag -fa "$MINOR_TAG" "$TAG^{}" -m "Update $MINOR_TAG -> $TAG"
 git push origin "refs/tags/$MINOR_TAG" --force
 
 echo "Floating tags updated successfully"

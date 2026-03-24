@@ -19,6 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: Auto Version
+        id: autoversion
         uses: ./
         with:
           version-file: VERSION
@@ -27,21 +28,31 @@ jobs:
           update-floating-tags: "true"
 
       - name: Sync to GitHub.com
+        if: steps.autoversion.outputs.bump-type != 'none'
         shell: bash
         env:
           GITHUB_COM_TOKEN: ${{ secrets.GH_COM_TOKEN }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
+          VERSION: ${{ steps.autoversion.outputs.version }}
         run: |
           if [ -z "${GITHUB_COM_TOKEN:-}" ]; then
-            echo "::warning::GITHUB_COM_TOKEN not set, skipping GitHub.com sync"
+            echo "::warning::GH_COM_TOKEN not set, skipping GitHub.com sync"
             exit 0
           fi
           REMOTE_URL="https://x-access-token:${GITHUB_COM_TOKEN}@github.com/lucaspretti/auto-version-action.git"
           git remote add github-sync "$REMOTE_URL" 2>/dev/null || \
             git remote set-url github-sync "$REMOTE_URL"
           git fetch origin --tags --force
+
           echo "Syncing branch ${GITHUB_REF_NAME} to GitHub.com..."
           git push github-sync "HEAD:refs/heads/${GITHUB_REF_NAME}"
-          echo "Syncing tags to GitHub.com..."
-          git push github-sync --tags --force
+
+          echo "Syncing release tag v${VERSION} to GitHub.com..."
+          git push github-sync "refs/tags/v${VERSION}" --force
+
+          IFS='.' read -r MAJOR MINOR _PATCH <<< "$VERSION"
+          echo "Syncing floating tags v${MAJOR} and v${MAJOR}.${MINOR} to GitHub.com..."
+          git push github-sync "refs/tags/v${MAJOR}" --force 2>/dev/null || true
+          git push github-sync "refs/tags/v${MAJOR}.${MINOR}" --force 2>/dev/null || true
+
           echo "Sync complete"
