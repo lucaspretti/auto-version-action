@@ -16,7 +16,7 @@ GitHub Actions **composite action** for automated semantic versioning driven by 
 1. **`analyze-commits.sh`** — Scans commits since last production tag using regex against conventional commit prefixes. Filters out `[skip ci]` commits before classification to avoid phantom bumps from automated commits. Detects `<type>!:` on any commit type for breaking changes (not just `feat!:`). Tolerates issue reference prefixes (e.g., `#123 feat:`). Outputs `type` (major/minor/patch/none) and `is_subsequent_rc` (whether RC tags already exist for this version). When all commits are `[skip ci]`, outputs `type=none` and all downstream steps skip gracefully.
 2. **`bump-version.sh`** — On staging: bumps version file via `version-utils.sh`, optionally updates Helm `Chart.yaml` `appVersion`, handles version escalation (higher-priority bump resets RC to 1), commits with `[skip ci]`, and pushes. On production: uses semver comparison (`version_gte`) to check if version is already correct or higher (from staging merge); only bumps if truly outdated (direct push). When `type=none`, skips entirely on both branches.
 3. **`create-release.sh`** — Creates GitHub releases via REST API. On staging: pre-release with RC tag. On production: full release. Both include categorized changelogs (Breaking/Features/Fixes/Maintenance/Other).
-4. **`cleanup-rc.sh`** — Production only. Deletes RC pre-releases with version ≤ current via GitHub API. Preserves higher-version RCs from escalation scenarios.
+4. **`cleanup-rc.sh`** — Production only. Deletes RC pre-releases with version <= current via GitHub API. Preserves higher-version RCs from escalation scenarios.
 5. **`update-floating-tags.sh`** — Production only, opt-in (`update-floating-tags: "true"`). Moves `vMAJOR` and `vMAJOR.MINOR` tags to the latest release. Useful for GitHub Actions consumed via `@v1`.
 6. **Sync step** (inline in `action.yml`) — Production only. Merges production back to staging (skipped if staging branch doesn't exist).
 7. **`summary.sh`** — Writes formatted step summary to `$GITHUB_STEP_SUMMARY`.
@@ -27,6 +27,8 @@ GitHub Actions **composite action** for automated semantic versioning driven by 
 
 **Idempotent re-runs**: Scripts handle existing tags/releases (delete-and-recreate pattern).
 
+**No-tag fallback**: When no production tag exists (first release), commit analysis starts from the repo's root commit (`git rev-list --max-parents=0 HEAD`). The `ROOT..HEAD` range excludes the root commit itself, so a repo with only one commit produces `type=none` (no release). The first release requires at least two commits.
+
 **Environment variable contract**: `action.yml` passes inputs/context to scripts via `env` blocks. Scripts read `INPUT_*` and `GITHUB_*` vars, write outputs to `$GITHUB_OUTPUT`.
 
 ## Runtime Requirements
@@ -35,19 +37,12 @@ Scripts expect these tools available on the runner: `bash`, `jq`, `sed`, `git` (
 
 ## Workflow Modes
 
-Supports both **two-branch** (staging → production with RC releases) and **single-branch** (production only, direct bump + release). Same action config, difference is only which branches trigger the workflow.
-
-## CI/CD
-
-This repo uses itself for versioning. Workflow at `.github/workflows/version.yml` runs on `web-default` (GHES self-hosted runner) with `github-api-url: ${{ github.api_url }}` for GHES compatibility.
-
-**Floating tags**: Built into the action via `update-floating-tags: "true"` input (default off). Moves `vMAJOR` and `vMAJOR.MINOR` tags on each production release. Enabled in this repo's workflow since consumers use `@v1`.
+Supports both **two-branch** (staging -> production with RC releases) and **single-branch** (production only, direct bump + release). Same action config, difference is only which branches trigger the workflow.
 
 ## GHES Notes
 
-- Always set `github-api-url: ${{ github.api_url }}` — default points to github.com
-- Use self-hosted runner label (`web-default`), not `ubuntu-latest`
-- `gh` CLI needs `unset GITHUB_ENTERPRISE_TOKEN` and `gh auth switch --hostname git.epo.org` to use keyring token with full repo access
+- Always set `github-api-url: ${{ github.api_url }}` for GitHub Enterprise Server
+- Use your self-hosted runner label instead of `ubuntu-latest`
 
 ## Testing
 

@@ -190,6 +190,31 @@ git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-rc.*
 
 ---
 
+### 14. `HEAD~10` fallback fails on non-linear history
+
+**Symptom**: `fatal: ambiguous argument 'HEAD~10..HEAD'` when running the action on a repo with no previous production tag.
+
+**Cause**: When no production tag exists, `analyze-commits.sh` fell back to `HEAD~10..HEAD` to analyze recent commits. This fails when:
+- The commit graph is non-linear (merge commits create ambiguous parent paths for `~N` notation)
+- The repo has fewer than 10 commits
+
+**Fix**: Replace `HEAD~10..HEAD` with `ROOT_COMMIT..HEAD`, where `ROOT_COMMIT` is discovered via `git rev-list --max-parents=0 HEAD | head -1`. This works on any history shape and any repo size.
+
+```bash
+# Bad -- fails on non-linear history or <10 commits
+git log --pretty=%s --no-merges HEAD~10..HEAD
+
+# Good -- works on any history
+ROOT_COMMIT=$(git rev-list --max-parents=0 HEAD | head -1)
+git log --pretty=%s --no-merges "$ROOT_COMMIT..HEAD"
+```
+
+**Note**: The `ROOT..HEAD` range excludes the root commit itself (standard git range behavior). In a repo with only one commit (root = HEAD), this produces an empty range, resulting in `type=none` (no release). The first release requires at least two commits. In practice this is not an issue since the root commit is typically a trivial initial commit.
+
+**Applies to**: Any repo running the action for the first time (no existing production tags).
+
+---
+
 ## Known Behaviors (Not Bugs)
 
 ### Reverted commits still appear in changelogs
@@ -284,21 +309,3 @@ Files with unrecognized names will cause the action to fail with an error.
 
 10. ~~**Non-Node.js version files**~~ — Done. Supported via `version-utils.sh`: JSON, TOML, YAML, plain text.
 
----
-
-## Real-World Reference: DLMS
-
-The DLMS project (`web/dlms`) was the first consumer of this action. Key details:
-
-- **Version file**: `js-app/package.json`
-- **Helm chart**: `helm/dlms/Chart.yaml`
-- **GitHub Enterprise**: `git.epo.org` with API at `https://git.epo.org/api/v3`
-- **Branches**: `staging` (RC) / `master` (production)
-- **Runner**: `web-default` (self-hosted)
-
-### DLMS-specific findings
-
-- The `appVersion` field was missing from Chart.yaml and had to be added manually before the action could update it.
-- After a production rollback (revert of staging→master merge), staging retained the original code while master was reverted. The action handled this correctly — the next staging push re-used the already-bumped version and created a new RC.
-- Old tags from pre-action workflow runs (e.g., `v2.2.0` pointing to an old merge commit) caused the changelog to use a wrong baseline. Fixed by switching from global tag sort to ancestor-based `git describe`.
-- The workflow was reduced from ~745 lines of inline shell to 45 lines referencing `web/auto-version-action@v1`.
