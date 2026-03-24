@@ -52,20 +52,20 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
     exit 0
   fi
 
-  # Check if this version already has a release tag
-  if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
-    echo "Release tag v$CURRENT_VERSION already exists, skipping (already released)"
-    echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
-    echo "rc_version=" >> "$GITHUB_OUTPUT"
-    echo "rc_number=" >> "$GITHUB_OUTPUT"
-    echo "version_changed=false" >> "$GITHUB_OUTPUT"
-    exit 0
-  fi
-
   # Check if a staging branch exists on remote
   STAGING_EXISTS=$(git ls-remote --exit-code origin "$INPUT_STAGING_BRANCH" >/dev/null 2>&1 && echo "true" || echo "false")
 
   if [ "$STAGING_EXISTS" = "true" ]; then
+    # In two-branch mode, version comes from the staging merge.
+    # If the tag already exists, it was already released.
+    if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
+      echo "Release tag v$CURRENT_VERSION already exists, skipping (already released)"
+      echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+      echo "rc_version=" >> "$GITHUB_OUTPUT"
+      echo "rc_number=" >> "$GITHUB_OUTPUT"
+      echo "version_changed=false" >> "$GITHUB_OUTPUT"
+      exit 0
+    fi
     # --- Two-branch mode ---
     # The version in package.json comes from the staging merge. Never bump here.
     # Just validate that RC tags exist for this version (meaning staging completed its cycle).
