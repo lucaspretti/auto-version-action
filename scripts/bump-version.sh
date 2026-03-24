@@ -4,7 +4,7 @@ set -euo pipefail
 # bump-version.sh
 # Bumps version in version-file (and optional helm chart).
 # For staging: bumps + creates RC number.
-# For production: reads version from package.json (set by staging merge), never bumps.
+# For production: reads version from version file (set by staging merge), never bumps.
 #   Exception: single-branch mode (no staging branch) bumps normally.
 # Outputs: version, rc_version, rc_number, version_changed
 
@@ -67,7 +67,7 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
       exit 0
     fi
     # --- Two-branch mode ---
-    # The version in package.json comes from the staging merge. Never bump here.
+    # The version in the version file comes from the staging merge. Never bump here.
     # Just validate that RC tags exist for this version (meaning staging completed its cycle).
     RC_TAG_COUNT=$(git tag -l "v${CURRENT_VERSION}-rc.*" 2>/dev/null | wc -l | tr -d ' ')
 
@@ -100,7 +100,7 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
     # Not a staging merge (hotfix branch merged directly to production).
     # Still do not bump: the hotfix branch should carry its own version,
     # or the next staging merge will bring the correct version.
-    echo "Two-branch mode: non-staging merge (hotfix), using version from package.json: $CURRENT_VERSION"
+    echo "Two-branch mode: non-staging merge (hotfix), using version from version file: $CURRENT_VERSION"
     echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
     echo "rc_version=" >> "$GITHUB_OUTPUT"
     echo "rc_number=" >> "$GITHUB_OUTPUT"

@@ -22,7 +22,7 @@ categorize_commits() {
 
   CHANGELOG=$(git log --pretty=format:"$fmt" $range | grep -v "\[skip ci\]" || echo "")
   TOTAL_COMMITS=$(git log --oneline $range | grep -vc "\[skip ci\]" || echo "0")
-  BREAKING=$(echo "$CHANGELOG" | grep -E "^- feat(\(.*\))?!:|BREAKING CHANGE" || echo "")
+  BREAKING=$(echo "$CHANGELOG" | grep -E "^- [a-z]+(\(.*\))?!:|BREAKING CHANGE" || echo "")
   FEATURES=$(echo "$CHANGELOG" | grep -E "^- feat(\(.*\))?:" | grep -v "!" || echo "")
   FIXES=$(echo "$CHANGELOG" | grep -E "^- fix(\(.*\))?:" || echo "")
   CHORES=$(echo "$CHANGELOG" | grep -E "^- (chore|docs|style|refactor|perf|test)(\(.*\))?:" || echo "")
@@ -112,7 +112,7 @@ if [ "$GITHUB_REF" = "$STAGING_REF" ]; then
 
   # Create GitHub pre-release
   RELEASE_NOTES=$(cat release_notes.md)
-  curl -L -X POST \
+  RC_RESPONSE=$(curl -s -w "\n%{http_code}" -L -X POST \
     -H "Accept: application/vnd.github+json" \
     -H "Authorization: Bearer $GITHUB_TOKEN" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
@@ -124,9 +124,18 @@ if [ "$GITHUB_REF" = "$STAGING_REF" ]; then
       \"body\": $(echo "$RELEASE_NOTES" | jq -Rs .),
       \"draft\": false,
       \"prerelease\": true
-    }"
+    }")
 
-  echo "Release Candidate v$RC_VERSION created successfully"
+  RC_HTTP_CODE=$(echo "$RC_RESPONSE" | tail -n1)
+  RC_BODY=$(echo "$RC_RESPONSE" | sed '$d')
+
+  if [ "$RC_HTTP_CODE" -ge 200 ] && [ "$RC_HTTP_CODE" -lt 300 ]; then
+    echo "Release Candidate v$RC_VERSION created successfully"
+  else
+    echo "::error::Failed to create RC release (HTTP $RC_HTTP_CODE)"
+    echo "Response: $RC_BODY"
+    exit 1
+  fi
   exit 0
 fi
 
@@ -193,7 +202,7 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
   fi
 
   printf '### Build Details\n\n' >> release_notes.md
-  printf -- '- **Docker Image**: `%s` ([view commit](%s/commit/%s))\n' "$COMMIT_SHA_SHORT" "$REPO_URL" "$GITHUB_SHA" >> release_notes.md
+  printf -- '- **Commit**: `%s` ([view](%s/commit/%s))\n' "$COMMIT_SHA_SHORT" "$REPO_URL" "$GITHUB_SHA" >> release_notes.md
   printf -- '- **Workflow Run**: [View logs](%s/actions/runs/%s)\n' "$REPO_URL" "$GITHUB_RUN_ID" >> release_notes.md
   printf -- '- **Build Time**: %s\n' "$BUILD_TIME" >> release_notes.md
   printf -- '- **Deployed By**: @%s\n\n' "$GITHUB_ACTOR" >> release_notes.md

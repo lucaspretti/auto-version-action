@@ -13,7 +13,7 @@ trap 'rm -rf "$TMPDIR_TEST"' EXIT
 # Replicate the grep categorization from create-release.sh:13-24
 categorize_line() {
   local line="$1"
-  if echo "$line" | grep -qE "^- feat(\(.*\))?!:|BREAKING CHANGE"; then echo "breaking"
+  if echo "$line" | grep -qE "^- [a-z]+(\(.*\))?!:|BREAKING CHANGE"; then echo "breaking"
   elif echo "$line" | grep -qE "^- feat(\(.*\))?:" && ! echo "$line" | grep -q "!"; then echo "feature"
   elif echo "$line" | grep -qE "^- fix(\(.*\))?:"; then echo "fix"
   elif echo "$line" | grep -qE "^- (chore|docs|style|refactor|perf|test)(\(.*\))?:"; then echo "maintenance"
@@ -71,6 +71,15 @@ assert_eq "breaking" "$(categorize_line "- feat(api)!: remove v1 endpoints (abc1
 
 test_start "categorize: BREAKING CHANGE in line as breaking"
 assert_eq "breaking" "$(categorize_line "- refactor: change auth BREAKING CHANGE (abc1234)")"
+
+test_start "categorize: fix!: as breaking"
+assert_eq "breaking" "$(categorize_line "- fix!: change token format (abc1234)")"
+
+test_start "categorize: chore!: as breaking"
+assert_eq "breaking" "$(categorize_line "- chore!: drop node 14 support (abc1234)")"
+
+test_start "categorize: refactor(scope)!: as breaking"
+assert_eq "breaking" "$(categorize_line "- refactor(auth)!: rewrite module (abc1234)")"
 
 test_start "categorize: fix: as fix"
 assert_eq "fix" "$(categorize_line "- fix: resolve null pointer (abc1234)")"

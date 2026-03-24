@@ -1,6 +1,6 @@
 # Edge Cases & Findings
 
-Lessons learned from real-world usage, initially discovered during the DLMS project integration. This document captures bugs found and fixed, known behaviors, and open items that may need future work.
+Lessons learned from real-world usage, initially discovered during the early adopter project integration. This document captures bugs found and fixed, known behaviors, and open items that may need future work.
 
 ## Bugs Found & Fixed
 
@@ -71,13 +71,13 @@ LAST_TAG=$(git describe --tags --abbrev=0 --exclude "*-rc.*" 2>/dev/null || echo
 
 **Context**: In GitHub Actions workflows, `run: |` uses YAML block scalars. Content indented under `run: |` has its leading whitespace automatically stripped based on the first content line. Moving content to column 0 **breaks** the YAML because it exits the block scalar scope.
 
-**Lesson**: Never "fix" indentation inside `run: |` blocks — YAML handles it correctly. This was initially identified as a bug in the original DLMS workflow but turned out to be a non-issue.
+**Lesson**: Never "fix" indentation inside `run: |` blocks — YAML handles it correctly. This was initially identified as a bug in the original workflow but turned out to be a non-issue.
 
 ---
 
 ### 6. Heredoc quoting prevents variable expansion
 
-**Context**: In the original DLMS workflow, production release notes used `<< 'EOF'` (quoted heredoc), which prevents `$VARIABLE` expansion. The workaround was fragile sed/awk substitution after the fact.
+**Context**: In the original workflow, production release notes used `<< 'EOF'` (quoted heredoc), which prevents `$VARIABLE` expansion. The workaround was fragile sed/awk substitution after the fact.
 
 **Fix**: The extracted action uses `printf` statements instead of heredocs, avoiding this class of issues entirely. Each line is explicitly formatted with variables as arguments.
 
@@ -221,7 +221,7 @@ git log --pretty=%s --no-merges "$ROOT_COMMIT..HEAD"
 
 **Scenario**: Feature work is merged to staging, then reverted (e.g., production rollback). The revert undoes the code changes but the original commits remain in git history.
 
-**Impact**: The changelog shows ALL commits in the range (original + revert), making it appear larger than the actual diff. For example, DLMS showed 41 commits in `v2.2.0-rc.1` when only 5 files actually changed.
+**Impact**: The changelog shows ALL commits in the range (original + revert), making it appear larger than the actual diff. For example, one project showed 41 commits in `v2.2.0-rc.1` when only 5 files actually changed.
 
 **Why**: `git log A..B` lists all commits between A and B, regardless of whether their changes were subsequently reverted. This is standard git behavior.
 

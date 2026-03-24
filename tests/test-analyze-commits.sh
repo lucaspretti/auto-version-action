@@ -119,16 +119,16 @@ assert_eq "patch" "$(classify_commits "$COMMITS")"
 # --- Issue reference prefix (type not at start of line) ---
 
 test_start "minor: feat with issue ref prefix"
-assert_eq "minor" "$(classify_commits "web/legal-text-delta#733 feat: add new feature")"
+assert_eq "minor" "$(classify_commits "org/my-repo#733 feat: add new feature")"
 
 test_start "minor: feat(scope) with issue ref prefix"
-assert_eq "minor" "$(classify_commits "web/repo#42 feat(api): add endpoint")"
+assert_eq "minor" "$(classify_commits "org/other-repo#42 feat(api): add endpoint")"
 
 test_start "minor: feat with short issue ref"
 assert_eq "minor" "$(classify_commits "#123 feat: add search")"
 
 test_start "major: feat! with issue ref prefix"
-assert_eq "major" "$(classify_commits "web/repo#99 feat!: drop legacy api")"
+assert_eq "major" "$(classify_commits "org/other-repo#99 feat!: drop legacy api")"
 
 test_start "major: fix! with issue ref prefix"
 assert_eq "major" "$(classify_commits "#55 fix!: change token format")"
@@ -137,7 +137,7 @@ test_start "major: refactor! with issue ref prefix"
 assert_eq "major" "$(classify_commits "org/repo#10 refactor!: rewrite module")"
 
 test_start "patch: fix with issue ref prefix"
-assert_eq "patch" "$(classify_commits "web/legal-text-delta#733 fix: resolve issue")"
+assert_eq "patch" "$(classify_commits "org/my-repo#733 fix: resolve issue")"
 
 test_start "patch: chore with issue ref prefix"
 assert_eq "patch" "$(classify_commits "#100 chore: update deps")"

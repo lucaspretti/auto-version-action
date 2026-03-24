@@ -40,7 +40,7 @@ else
 fi
 
 echo "- **Bump Type**: $BUMP_TYPE" >> "$GITHUB_STEP_SUMMARY"
-echo "- **Docker Image Tag**: ${GITHUB_SHA:0:7}" >> "$GITHUB_STEP_SUMMARY"
+echo "- **Commit**: ${GITHUB_SHA:0:7}" >> "$GITHUB_STEP_SUMMARY"
 echo "" >> "$GITHUB_STEP_SUMMARY"
 echo "### Commits Analyzed ($RANGE)" >> "$GITHUB_STEP_SUMMARY"
 echo '```' >> "$GITHUB_STEP_SUMMARY"

@@ -99,7 +99,7 @@ For GHES instances, add `github-api-url` to ensure API calls reach the correct e
           github-api-url: ${{ github.api_url }}
 ```
 
-> **Note for GHES:** Replace `runs-on: ubuntu-latest` with your self-hosted runner label (e.g., `runs-on: web-default`). Use `${{ github.api_url }}` instead of hardcoding the API URL so it works automatically on any instance.
+> **Note for GHES:** Replace `runs-on: ubuntu-latest` with your self-hosted runner label (e.g., `runs-on: self-hosted`). Use `${{ github.api_url }}` instead of hardcoding the API URL so it works automatically on any instance.
 
 ## Inputs
 
@@ -415,7 +415,7 @@ See [docs/edge-cases-and-findings.md](docs/edge-cases-and-findings.md) for:
 - Bugs found and fixed during real-world usage
 - Known behaviors (reverted commits in changelogs, orphaned tags, etc.)
 - Open items and future work
-- Reference implementation details from the DLMS project
+- Reference implementation details from real-world integrations
 
 ## Requirements
 

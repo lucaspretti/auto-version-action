@@ -3,9 +3,9 @@
 ## In Progress
 
 ### Test coverage for remaining scripts
-See detailed plan: `docs/superpowers/plans/2026-03-11-add-unit-tests.md`
-- [ ] `test-create-release.sh` - changelog categorization, skip-ci filtering, write_sections output
-- [ ] `test-cleanup-rc.sh` - RC version comparison, tag parsing
+- [x] `test-create-release.sh` - changelog categorization, skip-ci filtering, write_sections output
+- [x] `test-cleanup-rc.sh` - RC version comparison, tag parsing
+- [x] `test-bump-version-integration.sh` - single-branch production bump paths
 
 ## Planned
 
@@ -22,5 +22,5 @@ See detailed plan: `docs/superpowers/plans/2026-03-11-add-unit-tests.md`
 - [ ] Currently relies on `update-floating-tags.sh` which only runs on successful release
 
 ### Integration tests
-- [ ] End-to-end test that creates a temp git repo, runs the pipeline, and verifies output
-- [ ] Covers scenarios that unit tests cannot: tag creation, commit ranges, git state
+- [x] End-to-end test that creates a temp git repo, runs the pipeline, and verifies output
+- [ ] Covers more scenarios: tag creation, commit ranges, two-branch mode
