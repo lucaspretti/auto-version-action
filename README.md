@@ -101,15 +101,46 @@ For GHES instances, add `github-api-url` to ensure API calls reach the correct e
 
 > **Note for GHES:** Replace `runs-on: ubuntu-latest` with your self-hosted runner label (e.g., `runs-on: self-hosted`). Use `${{ github.api_url }}` instead of hardcoding the API URL so it works automatically on any instance.
 
-### Protected branches (GitHub App token)
+### Protected branches
 
 If the production or staging branch has branch protection that requires pull requests, the
 default `GITHUB_TOKEN` (acting as `github-actions[bot]`) cannot push the bump commit and the
-action fails with `GH006 Protected branch update failed`.
+action fails with:
 
-The recommended solution is to run the action as a GitHub App that is included in the branch
-protection `bypass_pull_request_allowances` list. Mint an installation token before calling the
-action and pass it as both the checkout token and the `github-token` input:
+```
+remote: error: GH006: Protected branch update failed for refs/heads/master.
+remote: - Changes must be made through a pull request.
+```
+
+The action needs a token whose identity is on the branch protection
+**`bypass_pull_request_allowances`** list. The default `GITHUB_TOKEN` is never on that list.
+Pick one of the two options below depending on context.
+
+|                          | GitHub App token                                  | Personal Access Token (PAT)                       |
+|--------------------------|---------------------------------------------------|---------------------------------------------------|
+| **Best for**             | Orgs, shared repos, long-lived automation         | Personal / small repos                            |
+| **Setup complexity**     | Higher (register app, install, configure bypass)  | Lower (generate PAT, add to bypass)               |
+| **Identity**             | The GitHub App (e.g. `my-org-bot`)                | The user who generated the PAT                    |
+| **Lifetime**             | Installation token minted fresh per run (1 hour)  | Manual rotation required before expiry            |
+| **Survives user leaving**| Yes                                               | No (dies with the user account)                   |
+| **Works on GHES**        | Yes                                               | Yes                                               |
+| **Works on github.com**  | Yes                                               | Yes                                               |
+
+#### Option 1: GitHub App token
+
+Setup:
+
+1. Register a GitHub App (Settings → Developer settings → GitHub Apps → New App). Grant
+   repository `contents: write` permission. Note the **App ID**.
+2. Generate and download the app's **private key** (PEM file).
+3. Install the app on the target repository.
+4. Add the app to the branch protection's
+   **Allow specified actors to bypass required pull requests** list for the protected branch.
+5. In the repo (or org), store:
+   - The **App ID** as a variable (e.g. `AUTO_VERSION_APP_ID`, not sensitive).
+   - The **private key** as a secret (e.g. `AUTO_VERSION_APP_KEY`).
+
+Workflow:
 
 ```yaml
     steps:
@@ -135,20 +166,19 @@ action and pass it as both the checkout token and the `github-token` input:
           github-api-url: ${{ github.api_url }}
 ```
 
-Requirements:
-- A GitHub App installed on the repository with `contents: write` permission.
-- The app's ID stored as a repo/org variable (not sensitive).
-- The app's private key stored as a repo/org secret.
-- The app added to the branch protection bypass list for the production/staging branches.
+#### Option 2: Personal Access Token (PAT)
 
-The same pattern unblocks any automated commit from a workflow (data refresh bots, Renovate,
-etc.) against a protected branch. Humans still go through pull requests; only the app identity
-is allowed to push directly.
+Setup:
 
-#### Alternative: Personal Access Token (PAT)
+1. Generate a classic or fine-grained PAT
+   (Settings → Developer settings → Personal access tokens).
+2. Grant it `contents: write` on the repo. Add `workflows: write` only if the action ever
+   edits workflow files.
+3. Add the PAT's user to the branch protection bypass list (or the user already has admin
+   privileges that bypass protection).
+4. Store the PAT as a repo/org secret (e.g. `RELEASE_PAT`).
 
-For small/personal repositories on github.com where creating a dedicated GitHub App is
-overkill, a Personal Access Token is simpler:
+Workflow:
 
 ```yaml
     steps:
@@ -165,16 +195,9 @@ overkill, a Personal Access Token is simpler:
           github-token: ${{ secrets.RELEASE_PAT }}
 ```
 
-Requirements:
-- A classic or fine-grained PAT with `contents: write` permission (and `workflows: write` if
-  the action ever edits workflow files).
-- Added to the branch protection bypass list as a user (or the PAT's user is on the allow list).
-
-Trade-offs vs. GitHub App:
-- Simpler setup (no app registration or installation).
-- PAT is tied to a user account — if that user leaves, the PAT dies.
-- PAT expires and must be rotated; App installation tokens are minted fresh per run.
-- For machine identity, a dedicated "machine user" account holding the PAT is often preferred.
+The same token pattern unblocks any automated commit from a workflow (data refresh bots,
+Renovate, etc.) against a protected branch. Humans still go through pull requests; only the
+app or PAT identity is allowed to push directly.
 
 ## Inputs
 
