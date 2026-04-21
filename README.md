@@ -145,6 +145,37 @@ The same pattern unblocks any automated commit from a workflow (data refresh bot
 etc.) against a protected branch. Humans still go through pull requests; only the app identity
 is allowed to push directly.
 
+#### Alternative: Personal Access Token (PAT)
+
+For small/personal repositories on github.com where creating a dedicated GitHub App is
+overkill, a Personal Access Token is simpler:
+
+```yaml
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+          persist-credentials: true
+
+      - name: Auto Version
+        uses: lucaspretti/auto-version-action@v1
+        with:
+          version-file: package.json
+          github-token: ${{ secrets.RELEASE_PAT }}
+```
+
+Requirements:
+- A classic or fine-grained PAT with `contents: write` permission (and `workflows: write` if
+  the action ever edits workflow files).
+- Added to the branch protection bypass list as a user (or the PAT's user is on the allow list).
+
+Trade-offs vs. GitHub App:
+- Simpler setup (no app registration or installation).
+- PAT is tied to a user account — if that user leaves, the PAT dies.
+- PAT expires and must be rotated; App installation tokens are minted fresh per run.
+- For machine identity, a dedicated "machine user" account holding the PAT is often preferred.
+
 ## Inputs
 
 | Input | Required | Default | Description |
