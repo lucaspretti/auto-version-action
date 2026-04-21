@@ -101,6 +101,50 @@ For GHES instances, add `github-api-url` to ensure API calls reach the correct e
 
 > **Note for GHES:** Replace `runs-on: ubuntu-latest` with your self-hosted runner label (e.g., `runs-on: self-hosted`). Use `${{ github.api_url }}` instead of hardcoding the API URL so it works automatically on any instance.
 
+### Protected branches (GitHub App token)
+
+If the production or staging branch has branch protection that requires pull requests, the
+default `GITHUB_TOKEN` (acting as `github-actions[bot]`) cannot push the bump commit and the
+action fails with `GH006 Protected branch update failed`.
+
+The recommended solution is to run the action as a GitHub App that is included in the branch
+protection `bypass_pull_request_allowances` list. Mint an installation token before calling the
+action and pass it as both the checkout token and the `github-token` input:
+
+```yaml
+    steps:
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.AUTO_VERSION_APP_ID }}
+          private-key: ${{ secrets.AUTO_VERSION_APP_KEY }}
+          github-api-url: ${{ github.api_url }}
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: true
+
+      - name: Auto Version
+        uses: lucaspretti/auto-version-action@v1
+        with:
+          version-file: package.json
+          github-token: ${{ steps.app-token.outputs.token }}
+          github-api-url: ${{ github.api_url }}
+```
+
+Requirements:
+- A GitHub App installed on the repository with `contents: write` permission.
+- The app's ID stored as a repo/org variable (not sensitive).
+- The app's private key stored as a repo/org secret.
+- The app added to the branch protection bypass list for the production/staging branches.
+
+The same pattern unblocks any automated commit from a workflow (data refresh bots, Renovate,
+etc.) against a protected branch. Humans still go through pull requests; only the app identity
+is allowed to push directly.
+
 ## Inputs
 
 | Input | Required | Default | Description |
