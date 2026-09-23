@@ -112,7 +112,7 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
   # This repo only has a production branch, so we must bump here.
   echo "Single-branch mode: no staging branch found, bumping version"
 
-  LAST_PROD_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-rc.*" 2>/dev/null || echo "")
+  LAST_PROD_TAG=$(last_release_tag)
   if [ -z "$LAST_PROD_TAG" ]; then
     LAST_PROD_VERSION="0.0.0"
   else
@@ -160,6 +160,21 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
   exit 0
 fi
 
+# ===== OTHER BRANCHES =====
+# Only the staging and production branches mutate the version. Any other branch
+# (develop, feature/*) that happens to run the action is a no-op: without this
+# guard it fell through to the staging logic, rewrote the version from the last
+# production tag and tried to push to staging from a non-staging checkout.
+if [ "$GITHUB_REF" != "$STAGING_REF" ]; then
+  CURRENT_VERSION=$(read_version "$INPUT_VERSION_FILE")
+  echo "Branch ${GITHUB_REF#refs/heads/} is neither $INPUT_STAGING_BRANCH nor $INPUT_PRODUCTION_BRANCH, skipping version bump"
+  echo "version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+  echo "rc_version=" >> "$GITHUB_OUTPUT"
+  echo "rc_number=" >> "$GITHUB_OUTPUT"
+  echo "version_changed=false" >> "$GITHUB_OUTPUT"
+  exit 0
+fi
+
 # ===== STAGING =====
 
 # No meaningful commits: skip entirely
@@ -180,7 +195,7 @@ BASE_VERSION="$CURRENT_VERSION"
 
 # If subsequent RC, check if we need a higher bump
 if [ "$IS_SUBSEQUENT_RC" = "true" ]; then
-  LAST_PROD_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-rc.*" 2>/dev/null || echo "")
+  LAST_PROD_TAG=$(last_release_tag)
   if [ -n "$LAST_PROD_TAG" ]; then
     LAST_PROD_VERSION=$(echo "$LAST_PROD_TAG" | sed 's/^v//')
   else
@@ -218,7 +233,7 @@ fi
 
 # Perform version bump if needed (RC-1 or re-bump for higher priority)
 if [ "$IS_SUBSEQUENT_RC" = "false" ] || [ "$NEEDS_REBUMP" = "true" ]; then
-  LAST_PROD_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-rc.*" 2>/dev/null || echo "")
+  LAST_PROD_TAG=$(last_release_tag)
   if [ -z "$LAST_PROD_TAG" ]; then
     LAST_PROD_VERSION="0.0.0"
     echo "No previous production release found, starting from 0.0.0"
@@ -237,7 +252,14 @@ if [ "$IS_SUBSEQUENT_RC" = "false" ] || [ "$NEEDS_REBUMP" = "true" ]; then
 
   echo "Expected version (bump $BUMP_TYPE from v$LAST_PROD_VERSION): $EXPECTED_VERSION"
 
-  if [ "$CURRENT_VERSION" != "$EXPECTED_VERSION" ]; then
+  if [ "$CURRENT_VERSION" != "$EXPECTED_VERSION" ] && version_gte "$CURRENT_VERSION" "$EXPECTED_VERSION"; then
+    # Never move the version backwards (SemVer 2: versions MUST increase). A version
+    # file ahead of the one derived from the last release was set by hand (e.g. a
+    # hotfix or release branch carrying its own version); keep it.
+    echo "Current version $CURRENT_VERSION is ahead of expected $EXPECTED_VERSION, keeping it"
+    NEEDS_BUMP="false"
+    BASE_VERSION="$CURRENT_VERSION"
+  elif [ "$CURRENT_VERSION" != "$EXPECTED_VERSION" ]; then
     echo "Bumping version: $CURRENT_VERSION -> $EXPECTED_VERSION"
 
     # Bump version file

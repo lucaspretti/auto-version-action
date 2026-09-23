@@ -83,3 +83,27 @@ write_version() {
       ;;
   esac
 }
+
+# last_release_tag [below_version]
+# Outputs the highest final release tag (vX.Y.Z, no pre-release) in the repo, or
+# nothing when there is none. With below_version, only tags strictly lower count.
+# Deliberately NOT `git describe`: describe only sees tags reachable from HEAD, and
+# in a develop -> staging -> master flow the release tags live on master. A branch
+# that does not contain the release commit (develop, or a staging branch recreated
+# after auto-delete-on-merge) would otherwise compute from a stale baseline and
+# produce a lower version, or an RC of a version that was already released.
+last_release_tag() {
+  local below="${1:-}"
+  git tag -l 'v*' \
+    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+    | sed 's/^v//' \
+    | sort -t. -k1,1n -k2,2n -k3,3n \
+    | awk -v below="$below" -F. '
+        BEGIN { if (below != "") split(below, b, ".") }
+        below == "" { print; next }
+        ($1 < b[1]) || ($1 == b[1] && $2 < b[2]) || ($1 == b[1] && $2 == b[2] && $3 < b[3]) { print }
+      ' \
+    | tail -1 \
+    | sed 's/^/v/' \
+    | grep . || true
+}

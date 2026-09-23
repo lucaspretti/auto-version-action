@@ -107,4 +107,28 @@ YAML
 assert_eq "1.5.0" "$(read_version "$TMPDIR_TEST/Chart.yaml")"
 
 # --- Summary ---
+# --- last_release_tag ---
+
+LRT_DIR=$(mktemp -d)
+(
+  cd "$LRT_DIR"
+  git init -q; git config user.name t; git config user.email t@t
+  git commit -q --allow-empty -m init
+  for t in v0.9.0 v0.10.0 v0.23.0-rc.4 v1 v1.5 release-2 v0.2.0; do git tag "$t"; done
+)
+
+test_start "last_release_tag: numeric order (0.10.0 > 0.9.0), ignores RC and floating tags"
+assert_eq "v0.10.0" "$(cd "$LRT_DIR" && last_release_tag)"
+
+test_start "last_release_tag: below a version"
+assert_eq "v0.9.0" "$(cd "$LRT_DIR" && last_release_tag 0.10.0)"
+
+test_start "last_release_tag: nothing below the lowest"
+assert_eq "" "$(cd "$LRT_DIR" && last_release_tag 0.2.0)"
+
+test_start "last_release_tag: sees a release tag not reachable from HEAD"
+(cd "$LRT_DIR" && git switch -q -c side && git commit -q --allow-empty -m x && git tag v0.30.0 && git switch -q -)
+assert_eq "v0.30.0" "$(cd "$LRT_DIR" && last_release_tag)"
+rm -rf "$LRT_DIR"
+
 test_summary "version-utils"
