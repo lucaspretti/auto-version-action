@@ -159,5 +159,146 @@ VERSION_LINE=$(echo "$OUTPUT" | grep "^version=" | head -1)
 assert_eq "version=0.1.0" "$VERSION_LINE" "first minor release"
 cleanup_test_repo "$TMPDIR"
 
+# Run bump-version.sh on an explicit branch, with explicit staging/production names
+run_bump_on() {
+  local bump_type="$1"
+  local ref_branch="$2"
+  local subsequent_rc="${3:-false}"
+
+  local output_file
+  output_file=$(mktemp)
+
+  GITHUB_OUTPUT="$output_file" \
+  GITHUB_REF="refs/heads/$ref_branch" \
+  INPUT_VERSION_FILE="VERSION" \
+  INPUT_HELM_CHART="" \
+  INPUT_STAGING_BRANCH="staging" \
+  INPUT_PRODUCTION_BRANCH="${PROD_BRANCH:-master}" \
+  BUMP_TYPE="$bump_type" \
+  IS_SUBSEQUENT_RC="$subsequent_rc" \
+  bash "$SCRIPT_DIR/../scripts/bump-version.sh" 2>&1 || true
+
+  cat "$output_file"
+  rm -f "$output_file"
+}
+
+# Test 7: A branch that is neither staging nor production never mutates the version
+TMPDIR=$(setup_test_repo)
+cd "$TMPDIR"
+git tag -a "v0.9.0" -m "v0.9.0"
+echo "0.23.0" > VERSION
+git commit -q -am "feat: work on develop"
+git switch -q -c develop
+HEAD_BEFORE=$(git rev-parse HEAD)
+
+test_start "other branch: develop keeps its version"
+OUTPUT=$(run_bump_on "minor" "develop")
+VERSION_LINE=$(echo "$OUTPUT" | grep "^version=" | head -1)
+assert_eq "version=0.23.0" "$VERSION_LINE" "develop must not be bumped"
+
+test_start "other branch: version_changed=false and no RC"
+CHANGED_LINE=$(echo "$OUTPUT" | grep "^version_changed=" | head -1)
+RC_LINE=$(echo "$OUTPUT" | grep "^rc_version=" | head -1)
+assert_eq "version_changed=false rc_version=" "$CHANGED_LINE $RC_LINE"
+
+test_start "other branch: no bump commit created"
+assert_eq "$HEAD_BEFORE" "$(git rev-parse HEAD)" "HEAD must not move"
+cleanup_test_repo "$TMPDIR"
+
+# Test 8: Staging recreated without the release commit (legal-text-delta, 2026-09).
+# staging -> master released v0.23.0, auto-delete-on-merge removed staging, and it was
+# restored from before the release commit. git describe on staging then saw v0.22.1,
+# and the action cut v0.23.0-rc.4 of a version that was already final.
+TMPDIR=$(setup_test_repo)
+cd "$TMPDIR"
+echo "0.22.1" > VERSION; git commit -q -am "chore: release 0.22.1"; git tag -a v0.22.1 -m v0.22.1
+echo "0.23.0" > VERSION; git commit -q -am "feat: big feature"
+git tag -a v0.23.0-rc.1 -m rc1; git tag -a v0.23.0-rc.3 -m rc3
+git switch -q -c staging
+git switch -q -
+git commit -q --allow-empty -m "Merge pull request #2384 from web/staging"
+git tag -a v0.23.0 -m v0.23.0
+git switch -q staging
+git commit -q --allow-empty -m "fix: handle guidelines TOC entries without labels"
+git push -q origin staging 2>/dev/null || true
+
+test_start "staging behind the release: never cuts an RC of a released version"
+OUTPUT=$(run_bump_on "patch" "staging" "true")
+RC_LINE=$(echo "$OUTPUT" | grep "^rc_version=" | head -1)
+assert_eq "rc_version=0.23.1-rc.1" "$RC_LINE" "was 0.23.0-rc.4"
+
+test_start "staging behind the release: version file moves to 0.23.1"
+assert_eq "0.23.1" "$(cat VERSION)"
+cleanup_test_repo "$TMPDIR"
+
+# Test 8b: A version file set ahead by hand is never moved backwards
+TMPDIR=$(setup_test_repo)
+cd "$TMPDIR"
+git tag -a "v1.5.6" -m "v1.5.6"
+echo "2.0.0" > VERSION
+git commit -q -am "fix: something"
+git switch -q -c staging
+git push -q origin staging 2>/dev/null || true
+HEAD_BEFORE=$(git rev-parse HEAD)
+
+test_start "staging: keeps a hand-set 2.0.0 instead of downgrading to 1.5.7"
+OUTPUT=$(run_bump_on "patch" "staging")
+RC_LINE=$(echo "$OUTPUT" | grep "^rc_version=" | head -1)
+assert_eq "rc_version=2.0.0-rc.1" "$RC_LINE"
+
+test_start "staging: no downgrade commit created"
+assert_eq "$HEAD_BEFORE" "$(git rev-parse HEAD)" "HEAD must not move"
+cleanup_test_repo "$TMPDIR"
+
+# Test 9: Staging still bumps forward normally
+TMPDIR=$(setup_test_repo)
+cd "$TMPDIR"
+git tag -a "v1.5.6" -m "v1.5.6"
+git commit -q --allow-empty -m "feat: new thing"
+git switch -q -c staging
+git push -q origin staging 2>/dev/null || true
+
+test_start "staging: minor bump from v1.5.6 to 1.6.0-rc.1"
+OUTPUT=$(run_bump_on "minor" "staging")
+RC_LINE=$(echo "$OUTPUT" | grep "^rc_version=" | head -1)
+assert_eq "rc_version=1.6.0-rc.1" "$RC_LINE"
+test_start "staging: VERSION file written"
+assert_eq "1.6.0" "$(cat VERSION)"
+cleanup_test_repo "$TMPDIR"
+
+# Test 10: Two-branch mode, hotfix merged straight to production (dlms, dataDesk, legalTexts)
+setup_two_branch_hotfix() {
+  git switch -q -c staging; git push -q origin staging 2>/dev/null || true
+  git switch -q master 2>/dev/null || git switch -q main
+  echo "2.4.0" > VERSION; git commit -q -am "chore: release 2.4.0"
+  git tag -a v2.4.0-rc.1 -m rc1; git tag -a v2.4.0 -m v2.4.0
+}
+
+TMPDIR=$(setup_test_repo)
+cd "$TMPDIR"
+setup_two_branch_hotfix
+echo "2.4.1" > VERSION; git commit -q -am "fix: hotfix carrying its own version"
+PROD=$(git branch --show-current)
+
+test_start "hotfix to production: uses the version the hotfix branch carries"
+OUTPUT=$(PROD_BRANCH="$PROD" run_bump_on "patch" "$PROD")
+VERSION_LINE=$(echo "$OUTPUT" | grep "^version=" | head -1)
+RC_LINE=$(echo "$OUTPUT" | grep "^rc_version=" | head -1)
+assert_eq "version=2.4.1 rc_version=" "$VERSION_LINE $RC_LINE"
+cleanup_test_repo "$TMPDIR"
+
+TMPDIR=$(setup_test_repo)
+cd "$TMPDIR"
+setup_two_branch_hotfix
+git commit -q --allow-empty -m "fix: hotfix without a version bump"
+PROD=$(git branch --show-current)
+HEAD_BEFORE=$(git rev-parse HEAD)
+
+test_start "hotfix to production without a bump: skipped, never rewrites production"
+OUTPUT=$(PROD_BRANCH="$PROD" run_bump_on "patch" "$PROD")
+CHANGED_LINE=$(echo "$OUTPUT" | grep "^version_changed=" | head -1)
+assert_eq "version_changed=false $HEAD_BEFORE" "$CHANGED_LINE $(git rev-parse HEAD)"
+cleanup_test_repo "$TMPDIR"
+
 # --- Summary ---
 test_summary "bump-version integration"

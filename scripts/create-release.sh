@@ -4,6 +4,9 @@ set -euo pipefail
 # create-release.sh
 # Creates RC pre-release (staging) or production release with categorized changelog.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/version-utils.sh"
+
 STAGING_REF="refs/heads/$INPUT_STAGING_BRANCH"
 PRODUCTION_REF="refs/heads/$INPUT_PRODUCTION_BRANCH"
 REPO_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
@@ -67,7 +70,7 @@ if [ "$GITHUB_REF" = "$STAGING_REF" ]; then
 
   # Determine commit range
   if [ "$RC_NUMBER" = "1" ]; then
-    LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-rc.*" 2>/dev/null || echo "")
+    LAST_TAG=$(last_release_tag)
   else
     PREV_RC=$((RC_NUMBER - 1))
     LAST_TAG="v${BASE_VERSION}-rc.${PREV_RC}"
@@ -172,7 +175,7 @@ if [ "$GITHUB_REF" = "$PRODUCTION_REF" ]; then
   git push origin "v$VERSION"
 
   # Find last production tag (exclude RCs and current)
-  LAST_PROD_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" --exclude "*-rc.*" --exclude "v${VERSION}" HEAD^ 2>/dev/null || echo "")
+  LAST_PROD_TAG=$(last_release_tag "$VERSION")
 
   if [ -z "$LAST_PROD_TAG" ]; then
     ROOT_COMMIT=$(git rev-list --max-parents=0 HEAD | head -1)
