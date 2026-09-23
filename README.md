@@ -26,6 +26,10 @@ on:
   push:
     branches: [master]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false   # queue runs so rapid pushes don't race on the same tag
+
 jobs:
   version:
     runs-on: ubuntu-latest
@@ -47,6 +51,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+> **Why `concurrency`?** Without it, several pushes landing close together (e.g. merging a batch of Dependabot PRs) start parallel runs that race to create the same tag and push the version bump; the losers fail with `tag already exists` / `! [rejected] ... (non-fast-forward)`. The guard queues the runs so each bump completes in order. Keep `cancel-in-progress: false` — cancelling a run mid-push can leave a half-created tag. Apply the same guard to any downstream workflow that also commits or tags (e.g. a plugin-publish workflow).
+
 ### Full setup (staging + production with RC releases)
 
 ```yaml
@@ -55,6 +61,10 @@ name: Auto Version
 on:
   push:
     branches: [master, staging]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false   # queue runs so rapid pushes don't race on the same tag
 
 jobs:
   version:
